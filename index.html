@@ -150,21 +150,41 @@
       inset: 0;
       z-index: 20;
       display: none;
-      align-content: start;
-      gap: 0;
       overflow: hidden;
-      padding: 10px;
       background: #000;
-      color: var(--pc-red);
-      font: clamp(13px, 1.4vw, 22px)/1.08 var(--terminal-font);
-      text-shadow: 0 0 8px var(--pc-red);
-      white-space: pre-wrap;
-      word-break: keep-all;
       user-select: none;
     }
 
     body.yandere-mode .yandere-wall {
       display: block;
+    }
+
+    .yandere-frag {
+      position: absolute;
+      opacity: 0;
+      color: var(--pc-red);
+      font-family: var(--terminal-font);
+      text-shadow: 0 0 6px var(--pc-red), 0 0 12px var(--pc-red);
+      white-space: nowrap;
+      pointer-events: none;
+      transition: opacity 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
+      animation: yandere-flicker 2s ease-in-out infinite;
+      animation-delay: var(--flicker-delay, 0s);
+    }
+
+    .yandere-frag.show {
+      opacity: var(--frag-opacity, 0.75);
+    }
+
+    @keyframes yandere-flicker {
+      0%, 100% { opacity: var(--frag-opacity, 0.75); }
+      25% { opacity: calc(var(--frag-opacity, 0.75) * 0.6); }
+      26% { opacity: calc(var(--frag-opacity, 0.75) * 1.15); }
+      27% { opacity: calc(var(--frag-opacity, 0.75) * 0.7); }
+      50% { opacity: var(--frag-opacity, 0.75); }
+      75% { opacity: calc(var(--frag-opacity, 0.75) * 0.5); }
+      76% { opacity: calc(var(--frag-opacity, 0.75) * 1.1); }
+      77% { opacity: calc(var(--frag-opacity, 0.75) * 0.65); }
     }
 
     .terminal-output {
@@ -372,6 +392,7 @@
   </style>
 </head>
 <body data-theme="jirai">
+  <div class="yandere-wall" id="yandereWall" aria-hidden="true"></div>
   <main class="terminal" aria-label="交互式命令行">
     <div class="theme-switch" aria-label="更换皮肤">
       <button class="theme-button" type="button" data-set-theme="jirai" aria-pressed="true" title="黑粉皮肤">黒桃</button>
@@ -451,8 +472,6 @@
       </pre>
     </section>
 
-    <div class="yandere-wall" id="yandereWall" aria-hidden="true"></div>
-
     <div class="terminal-meta">
       <span id="clock">--:--:--</span>
       <span id="hintText"></span>
@@ -509,22 +528,107 @@
       output.scrollTop = output.scrollHeight;
     }
 
+    let yandereTimers = [];
+
+    const yanderePhrases = [
+      "你是我的唯一",
+    ];
+
     function enterYandereMode() {
       yandereActive = true;
-      const phrase = "你是我的唯一";
-      const columns = Math.max(8, Math.ceil(window.innerWidth / 108));
-      const rows = Math.max(12, Math.ceil(window.innerHeight / 24));
-      const line = Array.from({ length: columns }, () => phrase).join("  ");
-      yandereWall.textContent = Array.from({ length: rows * 2 }, () => line).join("\n");
+      yandereWall.innerHTML = "";
       yandereWall.setAttribute("aria-hidden", "false");
       body.classList.add("yandere-mode");
       input.blur();
+
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      let spawned = 0;
+      const MAX = 160;
+      const BATCH = 5;
+      const phases = [
+        { from: 0,   to: 40,  interval: 25  }, // rapid burst
+        { from: 40,  to: 90,  interval: 50  }, // steady fill
+        { from: 90,  to: 130, interval: 100 }, // slow down
+        { from: 130, to: MAX, interval: 250 }, // trickle
+      ];
+
+      function spawnBatch() {
+        if (!yandereActive || spawned >= MAX) return;
+
+        const limit = Math.min(spawned + BATCH, MAX);
+        const frag = document.createDocumentFragment();
+
+        for (let i = spawned; i < limit; i++) {
+          const el = document.createElement("span");
+          el.className = "yandere-frag";
+          el.textContent = yanderePhrases[Math.floor(Math.random() * yanderePhrases.length)];
+
+          // position: full-screen scatter with edge bleed
+          // allow fragments to start partially off-screen for immersive density
+          const cx = (Math.random() - 0.05) * 1.1;
+          const cy = (Math.random() - 0.05) * 1.1;
+          const left = cx * W;
+          const top  = cy * H;
+
+          const fontSize = 13 + Math.random() * 22;
+          const opacity = 0.35 + Math.random() * 0.55;
+          const rotate = (Math.random() - 0.5) * 20;
+          const flickerDelay = Math.random() * 3;
+
+          el.style.left = left + "px";
+          el.style.top  = top + "px";
+          el.style.fontSize = fontSize + "px";
+          el.style.setProperty("--frag-opacity", opacity);
+          el.style.setProperty("--flicker-delay", flickerDelay + "s");
+          el.style.transform = `rotate(${rotate}deg)`;
+
+          // random weight: bolder for bigger text
+          if (fontSize > 18) el.style.fontWeight = "700";
+          else if (Math.random() < 0.25) el.style.fontWeight = "600";
+
+          frag.appendChild(el);
+        }
+
+        yandereWall.appendChild(frag);
+
+        // stagger fade-in within this batch
+        const frags = yandereWall.querySelectorAll(".yandere-frag:not(.show)");
+        frags.forEach((el, j) => {
+          const timer = window.setTimeout(() => el.classList.add("show"), j * 35 + Math.random() * 50);
+          yandereTimers.push(timer);
+        });
+
+        spawned = limit;
+        const phase = phases.find(p => spawned <= p.to) || phases[phases.length - 1];
+        const timer = window.setTimeout(spawnBatch, phase.interval + Math.random() * 30);
+        yandereTimers.push(timer);
+      }
+
+      spawnBatch();
     }
 
     function exitYandereMode() {
       yandereActive = false;
+      yandereTimers.forEach(clearTimeout);
+      yandereTimers = [];
       body.classList.remove("yandere-mode");
       yandereWall.setAttribute("aria-hidden", "true");
+
+      // erase evidence: remove everything below the welcome line
+      const welcomeText = "欢迎来到 jirai-cmd。输入 help 查看可用命令。";
+      for (const child of output.children) {
+        if (child.textContent === welcomeText) {
+          let next = child.nextSibling;
+          while (next) {
+            const gone = next;
+            next = next.nextSibling;
+            gone.remove();
+          }
+          break;
+        }
+      }
+
       input.focus();
     }
 
