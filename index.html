@@ -483,8 +483,17 @@
       }
 
       .terminal-output {
-        padding: 18px 14px 250px;
+        padding: 18px 14px 120px;
         font-size: 12px;
+        line-height: 1.32;
+      }
+
+      .line.logo {
+        font-size: 7px;
+        line-height: 1.05;
+        white-space: pre;
+        overflow: hidden;
+        text-overflow: clip;
       }
 
       .theme-switch {
@@ -500,18 +509,21 @@
       }
 
       .ascii-art {
-        right: 10px;
-        bottom: 96px;
-        max-width: calc(100vw - 24px);
-        max-height: 290px;
-        font-size: 3.4px;
-        opacity: 0.76;
+        right: 6px;
+        bottom: 36px;
+        max-width: 55vw;
+        max-height: 260px;
+        font-size: 2.8px;
+        opacity: 0.55;
+        overflow: hidden;
+        mask-image: linear-gradient(to left, black 60%, transparent 95%);
+        -webkit-mask-image: linear-gradient(to left, black 60%, transparent 95%);
       }
 
       .terminal-meta {
         left: 14px;
         right: 14px;
-        bottom: 92px;
+        bottom: 12px;
         flex-wrap: wrap;
         font-size: 10px;
       }
