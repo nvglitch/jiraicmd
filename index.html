@@ -317,7 +317,7 @@
 
     .command-input {
       display: inline-block;
-      min-width: 40ch;
+      min-width: 30ch;
       width: auto;
       border: 0;
       outline: 0;
@@ -325,6 +325,126 @@
       color: var(--text);
       caret-color: var(--accent);
       font: inherit;
+    }
+
+    .input-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    .autocomplete-hint {
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      color: color-mix(in srgb, var(--accent) 30%, transparent);
+      font: inherit;
+      white-space: pre;
+    }
+
+    .input-ruler {
+      position: fixed;
+      left: -9999px;
+      top: -9999px;
+      font: inherit;
+      white-space: pre;
+    }
+
+    /* ---- gallery overlay ---- */
+    .gallery-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(4px);
+    }
+    .gallery-overlay.open { display: flex; align-items: center; justify-content: center; }
+
+    .gallery-frame {
+      position: relative;
+      max-width: min(92vw, 1100px);
+      max-height: 92vh;
+      width: auto;
+      height: auto;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      box-shadow: 0 0 60px rgba(0,0,0,0.9), inset 0 0 80px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .gallery-scanlines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px
+      );
+    }
+
+    .gallery-header {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      font: clamp(11px, 0.9vw, 14px) var(--terminal-font);
+      color: var(--muted);
+      background: rgba(0,0,0,0.5);
+    }
+    .gallery-filename { color: var(--accent); }
+    .gallery-counter  { color: var(--pc-green); }
+
+    .gallery-viewport {
+      position: relative;
+      z-index: 1;
+      flex: 0 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+    }
+    .gallery-image {
+      display: block;
+      max-width: calc(92vw - 34px);
+      max-height: calc(92vh - 100px);
+      width: auto;
+      height: auto;
+      object-fit: scale-down;
+      border: 1px solid var(--line);
+      filter: brightness(1.05) contrast(1.05);
+      transition: opacity 0.25s;
+    }
+
+    .gallery-controls {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--line);
+      background: rgba(0,0,0,0.5);
+    }
+    .gallery-btn {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--accent);
+      font: clamp(11px, 0.9vw, 14px) var(--terminal-font);
+      padding: 4px 16px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .gallery-btn:hover { background: var(--accent); color: #000; }
+    .gallery-btn:active  { filter: brightness(1.3); }
+
+    .line.gallery-cursor {
+      color: #ff4fa3;
     }
 
     .terminal-meta {
@@ -409,7 +529,11 @@
     <section class="output-wrap">
       <div class="terminal-output" id="output" aria-live="polite">
         <span class="prompt-inline">maid@jirai:~$</span>
-        <input class="command-input" id="commandInput" name="command" spellcheck="false" autofocus>
+        <span class="input-wrap">
+          <input class="command-input" id="commandInput" name="command" spellcheck="false" autofocus>
+          <span class="autocomplete-hint" id="autocompleteHint"></span>
+          <span class="input-ruler" id="inputRuler" aria-hidden="true"></span>
+        </span>
       </div>
       <pre class="ascii-art" aria-hidden="true">
                                                                                                                                             
@@ -478,7 +602,28 @@
 
   </main>
 
+  <div class="gallery-overlay" id="galleryOverlay" aria-hidden="true">
+    <div class="gallery-frame">
+      <div class="gallery-scanlines"></div>
+      <div class="gallery-header">
+        <span class="gallery-filename" id="galleryFilename">—</span>
+        <span class="gallery-counter" id="galleryCounter">—</span>
+      </div>
+      <div class="gallery-viewport">
+        <img class="gallery-image" id="galleryImage" src="" alt="">
+      </div>
+      <div class="gallery-controls">
+        <button class="gallery-btn" id="galleryPrev" title="上一张 (←)">◀ prev</button>
+        <button class="gallery-btn" id="galleryClose" title="关闭 (Esc)">✕ close</button>
+        <button class="gallery-btn" id="galleryNext" title="下一张 (→)">next ▶</button>
+      </div>
+    </div>
+  </div>
+
   <script src="fortunes.js"></script>
+  <script src="maimai_data.js"></script>
+  <script src="chuni_data.js"></script>
+  <script src="rhythm.js"></script>
   <script>
     const body = document.body;
     const terminal = document.querySelector(".terminal");
@@ -542,6 +687,7 @@
       output.insertBefore(line, promptLabel);
       scrollToPrompt();
     }
+    window.appendLine = appendLine;
 
     let yandereTimers = [];
 
@@ -685,7 +831,10 @@
         "  echo <text>          输出一段文字",
         "  date                 显示当前时间",
         "  whoami               查看当前用户",
-        "  fortune              抽一条今日终端签"
+        "  fortune              抽一条今日终端签",
+        "  gallery              浏览 photo 画廊",
+        "  maimai               查看 maimai DX b50",
+        "  chuni                查看 CHUNITHM b30"
       ].forEach((line) => appendLine("response", line));
     }
 
@@ -738,6 +887,37 @@
         case "fortune":
           appendLine("warn", fortune());
           break;
+        case "gallery": {
+          const idx = parseInt(args[0], 10);
+          if (!isNaN(idx) && idx >= 0 && idx < photos.length) {
+            appendLine("ok", `opening ${photos[idx].replace("photo/", "")} ...`);
+            openGallery(idx);
+          } else if (args[0] && (isNaN(idx) || idx < 0 || idx >= photos.length)) {
+            appendLine("error", `编号 ${args[0]} 不存在，共 ${photos.length} 张 (0-${photos.length - 1})`);
+          } else {
+            appendLine("response", `📁 photo/ — ${photos.length} 张图片 (↑↓ 移动 Enter 打开 Esc 取消)`);
+            galleryLines = [];
+            photos.forEach((p, i) => {
+              const line = document.createElement("span");
+              line.className = "line info";
+              line.setAttribute("data-gallery-idx", i);
+              line.textContent = `    [${i}] ${p.replace("photo/", "")}`;
+              output.insertBefore(line, promptLabel);
+              galleryLines.push(line);
+            });
+            gallerySelectIndex = 0;
+            gallerySelectActive = true;
+            updateGalleryCursor();
+            scrollToPrompt();
+          }
+          break;
+        }
+        case "maimai":
+          cmdMaimai();
+          break;
+        case "chuni":
+          cmdChuni();
+          break;
         default:
           appendLine("error", `${name}: command not found. 输入 help 看看菜单。`);
       }
@@ -760,6 +940,40 @@
         return;
       }
 
+      // Enter or Escape clears hint
+      if (event.key === "Enter" || event.key === "Escape") {
+        hint.textContent = "";
+      }
+
+      // gallery select mode — arrow keys navigate file list
+      if (gallerySelectActive) {
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          gallerySelectIndex = Math.max(0, gallerySelectIndex - 1);
+          updateGalleryCursor();
+          return;
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          gallerySelectIndex = Math.min(galleryLines.length - 1, gallerySelectIndex + 1);
+          updateGalleryCursor();
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          exitGallerySelect();
+          openGallery(gallerySelectIndex);
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          exitGallerySelect();
+          return;
+        }
+        // any other key exits select mode and lets normal typing resume
+        exitGallerySelect();
+      }
+
       if (event.key === "Enter") {
         event.preventDefault();
         submitCommand();
@@ -779,6 +993,14 @@
         input.value = history[historyIndex] || "";
         input.setSelectionRange(input.value.length, input.value.length);
       }
+
+      // Tab completion
+      if (event.key === "Tab" && hint.textContent) {
+        event.preventDefault();
+        input.value += hint.textContent;
+        hint.textContent = "";
+        updateHint();
+      }
     });
 
     document.addEventListener("keydown", (event) => {
@@ -787,6 +1009,35 @@
         exitYandereMode();
       }
     });
+
+    // ---- autocomplete ----
+    const completions = [
+      "help", "clear", "chuni", "theme", "theme jirai", "theme mizuiro",
+      "echo", "date", "whoami", "fortune", "gallery", "maimai", "skin", "skin jirai", "skin mizuiro"
+    ];
+    const hint = document.querySelector("#autocompleteHint");
+    const ruler = document.querySelector("#inputRuler");
+
+    function updateHint() {
+      const val = input.value;
+      if (!val || gallerySelectActive || yandereActive) { hint.textContent = ""; return; }
+      let match = completions.find(c => c.startsWith(val) && c !== val);
+      if (match) {
+        match = match.slice(val.length);
+      } else {
+        const sub = completions.find(c => c.startsWith(val + " ") && c !== val + " ");
+        if (sub) match = sub.slice(val.length + 1);
+      }
+      if (match) {
+        hint.textContent = match;
+        ruler.textContent = val;
+        hint.style.left = ruler.offsetWidth + "px";
+      } else {
+        hint.textContent = "";
+      }
+    }
+
+    input.addEventListener("input", updateHint);
 
     themeButtons.forEach((button) => {
       button.addEventListener("click", () => {
@@ -797,6 +1048,91 @@
 
     terminal.addEventListener("click", () => input.focus());
     yandereWall.addEventListener("click", exitYandereMode);
+
+    // ---- gallery ----
+    const photos = [
+      "photo/huaban-5891557590.png",
+      "photo/huaban-7043666532.jpg",
+      "photo/huaban-7044481957.jpg",
+      "photo/huaban-7046974279.jpg",
+      "photo/huaban-7046977964.jpg",
+      "photo/huaban-7051791986.jpg",
+      "photo/huaban-7158846051.jpg",
+      "photo/huaban-7171145595.jpg",
+    ];
+    const galleryOverlay = document.querySelector("#galleryOverlay");
+    const galleryImage   = document.querySelector("#galleryImage");
+    const galleryFilename= document.querySelector("#galleryFilename");
+    const galleryCounter = document.querySelector("#galleryCounter");
+    let galleryIndex = 0;
+    let gallerySelectActive = false;
+    let gallerySelectIndex = 0;
+    let galleryLines = [];
+
+    function openGallery(index = 0) {
+      galleryIndex = Math.max(0, Math.min(index, photos.length - 1));
+      showPhoto(galleryIndex);
+      galleryOverlay.classList.add("open");
+      galleryOverlay.setAttribute("aria-hidden", "false");
+      input.blur();
+    }
+
+    function closeGallery() {
+      galleryOverlay.classList.remove("open");
+      galleryOverlay.setAttribute("aria-hidden", "true");
+      galleryImage.src = "";
+      // remove gallery file list from output
+      galleryLines.forEach(l => l.remove());
+      galleryLines = [];
+      gallerySelectActive = false;
+      input.focus();
+    }
+
+    function showPhoto(i) {
+      galleryIndex = i;
+      galleryImage.style.opacity = "0";
+      setTimeout(() => {
+        galleryImage.src = photos[i];
+        galleryFilename.textContent = photos[i].replace("photo/", "");
+        galleryCounter.textContent = `[${i + 1}/${photos.length}]`;
+        galleryImage.style.opacity = "1";
+      }, 120);
+    }
+
+    function galleryNext() { showPhoto((galleryIndex + 1) % photos.length); }
+    function galleryPrev() { showPhoto((galleryIndex - 1 + photos.length) % photos.length); }
+
+    function updateGalleryCursor() {
+      galleryLines.forEach((line, i) => {
+        const prefix = i === gallerySelectIndex ? " ▶ " : "   ";
+        line.textContent = `${prefix}[${i}] ${photos[i].replace("photo/", "")}`;
+        if (i === gallerySelectIndex) {
+          line.classList.add("gallery-cursor");
+        } else {
+          line.classList.remove("gallery-cursor");
+        }
+      });
+    }
+
+    function exitGallerySelect() {
+      gallerySelectActive = false;
+      galleryLines.forEach(l => l.remove());
+      galleryLines = [];
+    }
+
+    galleryOverlay.addEventListener("click", (e) => {
+      if (e.target === galleryOverlay) closeGallery();
+    });
+    document.querySelector("#galleryPrev").addEventListener("click", galleryPrev);
+    document.querySelector("#galleryNext").addEventListener("click", galleryNext);
+    document.querySelector("#galleryClose").addEventListener("click", closeGallery);
+
+    document.addEventListener("keydown", (e) => {
+      if (!galleryOverlay.classList.contains("open")) return;
+      if (e.key === "Escape")      { e.preventDefault(); closeGallery(); }
+      if (e.key === "ArrowLeft")   { e.preventDefault(); galleryPrev(); }
+      if (e.key === "ArrowRight")  { e.preventDefault(); galleryNext(); }
+    });
 
     function tickClock() {
       const now = new Date();
