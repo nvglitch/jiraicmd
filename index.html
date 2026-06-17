@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Jirai Terminal</title>
+  <link rel="icon" type="image/png" href="me.png">
   <style>
     :root {
       color-scheme: dark;
@@ -507,12 +508,58 @@
       ["response", "欢迎来到 jirai-cmd。输入 help 查看可用命令。"]
     ];
 
-    const fortunes = [
+    const staticFortunes = [
       "今天的幸运指令是: echo 我已经很努力了",
       "警告: 可爱浓度过高，请及时补充水分。",
       "你的 shell 已经帮你把坏心情放进 /tmp 了。",
-      "水色模式适合凌晨，黑粉模式适合发誓重新做人。"
+      "水色模式适合凌晨，黑粉模式适合发誓重新做人。",
+      "今日宜: 摸鱼。忌: 开会。幸运物: 耳机。",
+      "运势 ★★★★☆ — 会在地铁上听到一首让你起鸡皮疙瘩的歌。",
+      "运势 ★★★★★ — 今天写的 bug 会在三分钟内自己修好。",
+      "运势 ★★☆☆☆ — 小心把 rm -rf 打成 rm -rf /，虽然这里不是真 shell。",
+      "运势 ★★★☆☆ — 适合喝一杯冰美式然后发呆到下班。",
+      "今日幸运字符: 0x7F。它是 DEL，提醒你该删掉一些坏习惯。",
+      "运势 ★★★★☆ — 你会发现某个收藏夹里还有三年前存了没看的教程。",
+      "运势 ★★★★☆ — 随机播放到一首歌刚好是你一直在找的那首。",
+      "运势 ★★★★★ — 今天适合单曲循环一首 city pop，音量: 危险级别。",
+      "运势 ★★★☆☆ — 戴耳机的时候注意别把线缠成拓扑学难题。",
+      "运势 ★★★★☆ — 你的年度歌单会有一个令人意外但合理的第一名。",
+      "运势 ★★☆☆☆ — 小心在地铁上不自觉开始抖腿打拍子。",
+      "今日幸运音符: 440Hz 的 A4。它是标准音，你也是标准的可爱。",
+      "运势 ★★★☆☆ — 适合用 0.75 倍速重温一首老歌，会有新发现。",
+      "运势 ★★★★★ — 今天打音游 FC 概率 +37%，前提是你先活动一下手腕。",
+      "运势 ★★★☆☆ — boss 战前记得存档，生活没有 checkpoint。",
+      "运势 ★★★★☆ — 你会在匹配到靠谱队友后连赢三把。",
+      "运势 ★★☆☆☆ — 抽卡前先洗脸，今天的欧气不太够。",
+      "运势 ★★★★☆ — 那个卡关很久的地方，今天再试一次说不定就过了。",
+      "今日幸运 combo: 777。全连不是梦，只要你相信自己的手。",
+      "运势 ★★★☆☆ — 手柄电量告急，人生的电量也需要及时补充。",
+      "运势 ★★★★★ — 今天适合开新档，无论是游戏还是别的什么。",
     ];
+
+    function fortune() {
+      const seed = hashStr(dateSeed());
+      const total = staticFortunes.length + 1;
+      const idx = seed % total;
+      if (idx < staticFortunes.length) {
+        return staticFortunes[idx];
+      }
+      const bpm = 100 + (hashStr(dateSeed() + "bpm") % 80);
+      return `今日推荐 BPM: ${bpm}。太快会喘，太慢会困。`;
+    }
+
+    function dateSeed() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    function hashStr(s) {
+      let h = 0;
+      for (let i = 0; i < s.length; i++) {
+        h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+      }
+      return Math.abs(h);
+    }
 
     function appendLine(kind, text = "") {
       const line = document.createElement("span");
@@ -715,7 +762,7 @@
           enterYandereMode();
           break;
         case "fortune":
-          appendLine("warn", fortunes[Math.floor(Math.random() * fortunes.length)]);
+          appendLine("warn", fortune());
           break;
         default:
           appendLine("error", `${name}: command not found. 输入 help 看看菜单。`);
@@ -778,7 +825,9 @@
     yandereWall.addEventListener("click", exitYandereMode);
 
     function tickClock() {
-      clock.textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+      const now = new Date();
+      clock.textContent = now.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })
+        + " " + now.toLocaleTimeString("zh-CN", { hour12: false });
     }
 
     setTheme(localStorage.getItem("jirai-theme") || "jirai");
