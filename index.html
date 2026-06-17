@@ -72,8 +72,8 @@
     .terminal {
       position: relative;
       z-index: 1;
-      display: grid;
-      grid-template-rows: 1fr auto;
+      display: flex;
+      flex-direction: column;
       width: 100vw;
       height: 100vh;
       overflow: hidden;
@@ -88,7 +88,6 @@
 
     body.yandere-mode .theme-switch,
     body.yandere-mode .terminal-meta,
-    body.yandere-mode .prompt-row,
     body.yandere-mode .terminal-output,
     body.yandere-mode .ascii-art,
     body.yandere-mode .terminal::before {
@@ -141,6 +140,7 @@
 
     .output-wrap {
       position: relative;
+      flex: 1;
       min-height: 0;
       overflow: hidden;
     }
@@ -195,9 +195,16 @@
       padding:
         clamp(20px, 4vw, 52px)
         clamp(18px, 4vw, 56px)
-        clamp(220px, 29vh, 350px);
+        clamp(40px, 8vh, 100px);
       font: clamp(14px, 1.38vw, 20px)/1.58 var(--terminal-font);
       scrollbar-color: var(--accent) transparent;
+    }
+
+    .prompt-inline {
+      color: var(--pc-yellow);
+      font-weight: 800;
+      text-shadow: 0 0 14px var(--shadow);
+      white-space: nowrap;
     }
 
     .line {
@@ -307,43 +314,23 @@
     body[data-theme="mizuiro"] .ascii-art .a8  { color: hsl(192, 100%, 94%); }
     body[data-theme="mizuiro"] .ascii-art .a9  { color: hsl(192, 100%, 98%); }
 
-    .prompt-row {
-      position: relative;
-      z-index: 3;
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 12px;
-      align-items: center;
-      min-height: clamp(58px, 8vh, 82px);
-      padding: 12px clamp(18px, 4vw, 56px);
-      border-top: 1px solid var(--line);
-      background: var(--bg);
-      box-shadow: 0 -12px 24px rgba(0, 0, 0, 0.78);
-    }
-
-    .prompt {
-      color: var(--pc-yellow);
-      font-weight: 800;
-      text-shadow: 0 0 14px var(--shadow);
-      white-space: nowrap;
-    }
-
     .command-input {
-      width: 100%;
-      min-width: 0;
+      display: inline-block;
+      min-width: 40ch;
+      width: auto;
       border: 0;
       outline: 0;
       background: transparent;
       color: var(--text);
       caret-color: var(--accent);
-      font: clamp(15px, 1.35vw, 20px) var(--terminal-font);
+      font: inherit;
     }
 
     .terminal-meta {
       position: absolute;
       left: clamp(18px, 4vw, 56px);
       right: clamp(18px, 4vw, 56px);
-      bottom: calc(clamp(58px, 8vh, 82px) + 10px);
+      bottom: 12px;
       z-index: 3;
       display: flex;
       justify-content: space-between;
@@ -400,13 +387,6 @@
         opacity: 0.76;
       }
 
-      .prompt-row {
-        grid-template-columns: 1fr;
-        gap: 5px;
-        min-height: 82px;
-        padding: 10px 14px;
-      }
-
       .terminal-meta {
         left: 14px;
         right: 14px;
@@ -426,7 +406,10 @@
     </div>
 
     <section class="output-wrap">
-      <div class="terminal-output" id="output" aria-live="polite"></div>
+      <div class="terminal-output" id="output" aria-live="polite">
+        <span class="prompt-inline">maid@jirai:~$</span>
+        <input class="command-input" id="commandInput" name="command" spellcheck="false" autofocus>
+      </div>
       <pre class="ascii-art" aria-hidden="true">
                                                                                                                                             
                                                                                                                                             
@@ -492,10 +475,6 @@
       <span id="hintText"></span>
     </div>
 
-    <form class="prompt-row" id="commandForm" autocomplete="off">
-      <label class="prompt" for="commandInput">maid@jirai:~$</label>
-      <input class="command-input" id="commandInput" name="command" spellcheck="false" autofocus>
-    </form>
   </main>
 
   <script>
@@ -503,8 +482,8 @@
     const terminal = document.querySelector(".terminal");
     const output = document.querySelector("#output");
     const yandereWall = document.querySelector("#yandereWall");
-    const form = document.querySelector("#commandForm");
     const input = document.querySelector("#commandInput");
+    const promptLabel = document.querySelector(".prompt-inline");
     const clock = document.querySelector("#clock");
     const hintText = document.querySelector("#hintText");
     const themeButtons = Array.from(document.querySelectorAll("[data-set-theme]"));
@@ -539,8 +518,8 @@
       const line = document.createElement("span");
       line.className = `line ${kind}`;
       line.textContent = text;
-      output.appendChild(line);
-      output.scrollTop = output.scrollHeight;
+      output.insertBefore(line, promptLabel);
+      scrollToPrompt();
     }
 
     let yandereTimers = [];
@@ -555,6 +534,8 @@
       yandereWall.setAttribute("aria-hidden", "false");
       body.classList.add("yandere-mode");
       input.blur();
+      promptLabel.style.display = "none";
+      input.style.display = "none";
 
       const W = window.innerWidth;
       const H = window.innerHeight;
@@ -629,13 +610,15 @@
       yandereTimers = [];
       body.classList.remove("yandere-mode");
       yandereWall.setAttribute("aria-hidden", "true");
+      promptLabel.style.display = "";
+      input.style.display = "";
 
       // erase evidence: remove everything below the welcome line
       const welcomeText = "欢迎来到 jirai-cmd。输入 help 查看可用命令。";
       for (const child of output.children) {
         if (child.textContent === welcomeText) {
           let next = child.nextSibling;
-          while (next) {
+          while (next && next !== promptLabel && next !== input) {
             const gone = next;
             next = next.nextSibling;
             gone.remove();
@@ -645,6 +628,13 @@
       }
 
       input.focus();
+      scrollToPrompt();
+    }
+
+    function scrollToPrompt() {
+      const promptTop = promptLabel.offsetTop;
+      const viewH = output.clientHeight;
+      output.scrollTop = Math.max(0, promptTop - viewH * 0.6);
     }
 
     function setTheme(theme) {
@@ -694,7 +684,10 @@
           printHelp();
           break;
         case "clear":
-          output.replaceChildren();
+          while (output.firstChild && output.firstChild !== promptLabel) {
+            output.firstChild.remove();
+          }
+          scrollToPrompt();
           break;
         case "theme":
         case "skin": {
@@ -738,11 +731,6 @@
       runCommand(input.value);
       input.value = "";
     }
-
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      submitCommand();
-    });
 
     input.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && yandereActive) {
@@ -794,9 +782,8 @@
     }
 
     setTheme(localStorage.getItem("jirai-theme") || "jirai");
-    bootLines.forEach(([kind, text], index) => {
-      window.setTimeout(() => appendLine(kind, text), 80 * index);
-    });
+    bootLines.forEach(([kind, text]) => appendLine(kind, text));
+    scrollToPrompt();
     tickClock();
     window.setInterval(tickClock, 1000);
   </script>
