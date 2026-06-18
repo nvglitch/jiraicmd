@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Jirai Terminal</title>
   <link rel="icon" type="image/png" href="me.png">
   <style>
@@ -486,6 +486,14 @@
         padding: 18px 14px 120px;
         font-size: 12px;
         line-height: 1.32;
+      }
+
+      .command-input {
+        font-size: 16px; /* prevent iOS auto-zoom */
+      }
+
+      .prompt-inline {
+        font-size: 16px;
       }
 
       .line.logo {
@@ -1145,6 +1153,23 @@
       if (e.key === "ArrowLeft")   { e.preventDefault(); galleryPrev(); }
       if (e.key === "ArrowRight")  { e.preventDefault(); galleryNext(); }
     });
+
+    // touch swipe for gallery
+    {
+      let touchStartX = 0;
+      galleryOverlay.addEventListener("touchstart", (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+      galleryOverlay.addEventListener("touchend", (e) => {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 60) { dx > 0 ? galleryPrev() : galleryNext(); }
+      });
+    }
+
+    // mobile: keep prompt visible above keyboard
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", () => {
+        scrollToPrompt();
+      });
+    }
 
     function tickClock() {
       const now = new Date();
